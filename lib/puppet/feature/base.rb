@@ -18,14 +18,21 @@ Puppet.features.add(:microsoft_windows) do
   begin
     # ruby
     require 'Win32API'          # case matters in this require!
-    require 'win32ole'
     # gems
     require 'win32/process'
-    require 'win32/dir'
     require 'win32/service'
+
+    begin
+      # Don't require win32ole due to: https://bugs.ruby-lang.org/issues/12371
+      require 'win32ole'
+      require 'win32/dir'
+    rescue
+      warn "Unable to load win32ole or win32/dir, some features may not work"
+    end
+
     true
   rescue LoadError => err
-    warn "Cannot run on Microsoft Windows without the win32-process, win32-dir and win32-service gems: #{err}" unless Puppet.features.posix?
+    warn "Cannot run on Microsoft Windows without the win32-process and win32-service gems: #{err}" unless Puppet.features.posix?
   end
 end
 

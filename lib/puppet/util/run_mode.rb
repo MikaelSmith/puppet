@@ -103,7 +103,7 @@ module Puppet
     private
 
       def windows_common_base(*extra)
-        [Dir::COMMON_APPDATA, "PuppetLabs"] + extra
+        [Windows::File::get_known_folder_path(:FOLDERID_ProgramData), "PuppetLabs"] + extra
       end
     end
   end
