@@ -1,6 +1,104 @@
 require 'puppet/application'
 require 'puppet/error'
 
+module ContractHelper
+  begin
+    require 'ffi'
+    extend FFI::Library
+    ffi_lib 'contract'
+
+    CTFS_ROOT = '/system/contract'
+    CT_TEMPLATE = CTFS_ROOT+'/process/template'
+    CT_LATEST = CTFS_ROOT+'/process/latest'
+    CT_PR_PGRPONLY = 0x4
+    CT_PR_EV_HWERR = 0x20
+    CTD_COMMON = 0
+
+    attach_function :ct_tmpl_activate, [:int], :int
+    attach_function :ct_tmpl_clear, [:int], :int
+    attach_function :ct_ctl_abandon, [:int], :int
+
+    attach_function :ct_pr_tmpl_set_param, [:int, :int], :int
+    attach_function :ct_pr_tmpl_set_fatal, [:int, :int], :int
+    attach_function :ct_tmpl_set_critical, [:int, :int], :int
+    attach_function :ct_tmpl_set_informative, [:int, :int], :int
+
+    attach_function :ct_status_read, [:int, :int, :pointer], :int
+    attach_function :ct_status_get_id, [:pointer], :int
+    attach_function :ct_status_free, [:pointer], :void
+
+    def ContractHelper.activate_new_contract_template()
+      tmpl_fd = IO.sysopen(CT_TEMPLATE, 'r+')
+      Puppet.fatal "Unable to access contract template" if tmpl_fd == -1
+
+      begin
+        raise if 0 != ct_pr_tmpl_set_param(tmpl_fd, CT_PR_PGRPONLY)
+        raise if 0 != ct_pr_tmpl_set_param(tmpl_fd, CT_PR_PGRPONLY)
+        raise if 0 != ct_tmpl_set_critical(tmpl_fd, 0)
+        raise if 0 != ct_tmpl_set_informative(tmpl_fd, CT_PR_EV_HWERR)
+
+        raise if 0 != ct_tmpl_activate(tmpl_fd)
+      rescue
+        close(tmpl_fd)
+        Puppet.fatal "Unable to modify contract"
+      end
+
+      return tmpl_fd
+    end
+
+    def ContractHelper.deactivate_contract_template(tmpl_fd)
+      return 0 if tmpl_fd < 0
+
+      err = ct_tmpl_clear(tmpl_fd)
+      close(tmpl_fd)
+      Puppet.fatal "Unable to deactivate contract template" if err != 0
+    end
+
+    def get_latest_child_contract_id()
+      stat_fd = IO.sysopen(CT_LATEST, 'r')
+      Puppet.fatal "Unable to access contract latest" if tmpl_fd == -1
+
+      FFI::MemoryPointer.new(:pointer) do |stathdl|
+        ctid = -1
+
+        if 0 == ct_status_read(stat_fd, CTD_COMMON, stathdl)
+          ctid = ct_status_get_id(stathdl)
+          ct_status_free(stathdl)
+        end
+
+        close(stat_fd)
+
+        Puppet.fatal "Unable to read contract stats" if ctid < 0
+
+        return ctid
+      end
+    end
+
+    def ContractHelper.abandon_latest_child_contract()
+      ctid = get_latest_child_contract_id
+
+      ctl_fd = IO.sysopen(CTFS_ROOT + '/process/' + ctid + '/ctl', 'w')
+      Puppet.fatal "Unable to read latest child contract" if ctl_fd < 0
+
+      err = ct_ctl_abandon(ctl_fd)
+      close(ctl_fd)
+
+      Puppet.fatal "Failed to abandon contract created for a child process" if err != 0
+    end
+  rescue LoadError
+    Puppet.debug "Solaris contracts unavailable"
+
+    def ContractHelper.activate_new_contract_template()
+    end
+
+    def ContractHelper.deactivate_contract_template(tmpl_fd)
+    end
+
+    def ContractHelper.abandon_latest_child_contract()
+    end
+  end
+end
+
 # A general class for triggering a run of another
 # class.
 class Puppet::Agent
@@ -64,7 +162,11 @@ class Puppet::Agent
   def run_in_fork(forking = true)
     return yield unless forking or Puppet.features.windows?
 
+    tmpl_fd = ContractHelper.activate_new_contract_template
+
     child_pid = Kernel.fork do
+      ContractHelper.deactivate_contract_template(tmpl_fd)
+
       $0 = "puppet agent: applying configuration"
       begin
         exit(yield)
@@ -74,6 +176,10 @@ class Puppet::Agent
         exit(-2)
       end
     end
+
+    ContractHelper.deactivate_contract_template(tmpl_fd)
+    ContractHelper.abandon_latest_child_contract
+
     exit_code = Process.waitpid2(child_pid)
     case exit_code[1].exitstatus
     when -1
