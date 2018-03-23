@@ -340,6 +340,9 @@ class Closure < CallableSignature
            else
              Types::PAnyType::DEFAULT
            end
+    if param.type_expr
+      type.text = param.type_expr.locator.extract_text(param.type_expr.offset, param.type_expr.length)
+    end
 
     if param.captures_rest && type.is_a?(Types::PArrayType)
       # An array on a slurp parameter is how a size range is defined for a

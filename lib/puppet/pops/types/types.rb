@@ -84,6 +84,8 @@ class PAnyType < TypedModelObject
     args.empty? ? self::DEFAULT : new(*args)
   end
 
+  attr_accessor :text
+
   # Accept a visitor that will be sent the message `visit`, once with `self` as the
   # argument. The visitor will then visit all types that this type contains.
   #
