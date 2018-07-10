@@ -303,6 +303,11 @@ call_function_expression
       loc result, val[0], val[2]
       result.lambda = val[2]
     }
+  | call_function_start arguments endcomma RPAREN LBRACE opt_statements RBRACE {
+      # manifest block
+      result = Factory.APPLY(val[1], Factory.apply_block(val[5]))
+      loc result, val[0], val[6]
+    }
 
 call_function_start
   : expression LPAREN { result = val[0] }
