@@ -335,6 +335,14 @@ lambda
       result = Factory.LAMBDA(val[0][:value], val[2][:value], val[1])
       loc result, val[0][:start], val[2][:end]
     }
+  | LBRACE statements RBRACE {
+      result = Factory.LAMBDA(nil, val[0], nil)
+      loc result, val[0], val[2]
+    }
+  | LBRACE RBRACE {
+      result = Factory.LAMBDA(nil, nil, nil)
+      loc result, val[0], val[1]
+    }
 
 lambda_rest
   : LBRACE statements RBRACE  { result = {:end => val[2], :value =>val[1] } }

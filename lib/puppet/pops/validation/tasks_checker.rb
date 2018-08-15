@@ -12,27 +12,11 @@ class TasksChecker < Checker4_0
     illegalTasksExpression(o)
   end
 
-  def check_CollectExpression(o)
-    illegalTasksExpression(o)
-  end
-
   def check_HostClassDefinition(o)
     illegalTasksExpression(o)
   end
 
   def check_NodeDefinition(o)
-    illegalTasksExpression(o)
-  end
-
-  def check_RelationshipExpression(o)
-    illegalTasksExpression(o)
-  end
-
-  def check_ResourceDefaultsExpression(o)
-    illegalTasksExpression(o)
-  end
-
-  def check_ResourceExpression(o)
     illegalTasksExpression(o)
   end
 
